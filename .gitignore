@@ -1,0 +1,8 @@
+*.txt
+game/saves/
+
+*.rpyc
+*.rpyb
+*.rpym
+*.rpymc
+__pycache__
