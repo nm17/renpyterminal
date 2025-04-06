@@ -1,6 +1,6 @@
 *.txt
 game/saves/
-
+game/python-packages/
 *.rpyc
 *.rpyb
 *.rpym
