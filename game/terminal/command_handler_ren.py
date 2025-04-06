@@ -4,6 +4,7 @@ init python:
 
 import threading
 
+
 def command_handler(self):
     if self.current_input == "help":
         self.feed("Available commands: help, about, clear, exit\r\n")
@@ -33,7 +34,7 @@ def command_handler(self):
         self.feed(f"{Colors.CROSSED}Strikethrough text{Colors.END}\r\n")
         self.feed(f"{Colors.UNDERLINE}Underlined text{Colors.END}\r\n")
         self.feed(f"{Colors.NEGATIVE}Negative text{Colors.END}\r\n")
-        self.feed(f"\x5B\x5B\x5B\x5B\x5B\x5B\x5B\x5B\x5B test")
+        self.feed(f"\x5b\x5b\x5b\x5b\x5b\x5b\x5b\x5b\x5b test")
     elif self.current_input == "привет":
         self.feed(f"{Colors.BLUE}Тест русского языка 123{Colors.END}")
     else:

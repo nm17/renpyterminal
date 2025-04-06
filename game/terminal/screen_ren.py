@@ -15,11 +15,24 @@ import time
 
 import functools
 
-DEFAULT_MOTD = f"{Colors.END}{Colors.BOLD}{Colors.GREEN}Ren'Py Terminal{Colors.END}{Colors.END}\r\n" + "Type 'help' for commands\r\n\r\n"
-DEFAULT_PROMPT = f"{Colors.GREEN}user@renpy{Colors.END}:{Colors.LIGHT_BLUE}~{Colors.END}$ "
+DEFAULT_MOTD = (
+    f"{Colors.END}{Colors.BOLD}{Colors.GREEN}Ren'Py Terminal{Colors.END}{Colors.END}\r\n"
+    + "Type 'help' for commands\r\n\r\n"
+)
+DEFAULT_PROMPT = (
+    f"{Colors.GREEN}user@renpy{Colors.END}:{Colors.LIGHT_BLUE}~{Colors.END}$ "
+)
+
 
 class RenPyTerminal(pyte.HistoryScreen):
-    def __init__(self, command_handler, motd=DEFAULT_MOTD, prompt=DEFAULT_PROMPT, width=80, height=24):
+    def __init__(
+        self,
+        command_handler,
+        motd=DEFAULT_MOTD,
+        prompt=DEFAULT_PROMPT,
+        width=80,
+        height=24,
+    ):
         self.width = width
         self.height = height
         super().__init__(width, height, ratio=0.25, history=200)
@@ -40,8 +53,7 @@ class RenPyTerminal(pyte.HistoryScreen):
         self.running = False
         self.motd = motd
         self.frame = 0
-        
-        
+
         self.render_buffer = []
 
         self.reset()
@@ -56,16 +68,16 @@ class RenPyTerminal(pyte.HistoryScreen):
                 while True:
                     output = self.proc.output_queue.get()
                     self.stream.feed(output)
-                    
+
                     self.render()
                     renpy.restart_interaction()
             except queue.Empty:
                 pass
-                
+
             time.sleep(0.1)
-        
+
         self.render()
-    
+
     def launch_program(self, cmd):
         """
         Launch a given program using
@@ -80,17 +92,10 @@ class RenPyTerminal(pyte.HistoryScreen):
         self.update_timer.daemon = True
         self.update_timer.start()
 
-
-
-
-
-
-
-
-
-    
     def bell(self, *args):
-        renpy.sound.play("terminal/audio/beep.wav", channel="sound", relative_volume=0.8)
+        renpy.sound.play(
+            "terminal/audio/beep.wav", channel="sound", relative_volume=0.8
+        )
 
     def toggle_cursor(self):
         self.cursor_visible = not self.cursor_visible
@@ -99,22 +104,17 @@ class RenPyTerminal(pyte.HistoryScreen):
         except IndexError:
             return
         if self.cursor_visible:
-            self.render_buffer[self.cursor.y][self.cursor.x] = (
-                {
-                    "data": " ",
-                    "background": to_hex_color("#ffffff", isFg=False),
-                    "foreground": to_hex_color("#000000", isFg=True),
-                }
-            )
+            self.render_buffer[self.cursor.y][self.cursor.x] = {
+                "data": " ",
+                "background": to_hex_color("#ffffff", isFg=False),
+                "foreground": to_hex_color("#000000", isFg=True),
+            }
         else:
-            self.render_buffer[self.cursor.y][self.cursor.x] = (
-                {
-                    "data": " ",
-                    "background": to_hex_color("#00000000", isFg=False),
-                    "foreground": to_hex_color("#ffffff", isFg=True),
-                }
-            )
-         
+            self.render_buffer[self.cursor.y][self.cursor.x] = {
+                "data": " ",
+                "background": to_hex_color("#00000000", isFg=False),
+                "foreground": to_hex_color("#ffffff", isFg=True),
+            }
 
     def handle_backspace(self):
         if len(self.current_input) == 0:
@@ -189,12 +189,12 @@ class RenPyTerminal(pyte.HistoryScreen):
     def feed(self, data):
         # if self.proc and self.proc.poll() is None:
         #     self.proc.stdin.write(self.current_input + "\r\n")
-        
+
         if not type(data) == str:
             raise RuntimeError(f"[[RenPyTerminal]] Invalid data type - {repr(data)}")
         self.stream.feed(data.encode("utf-8"))
 
-        #self.dirty.clear()
+        # self.dirty.clear()
         self.render()
         # renpy.restart_interaction()
 
@@ -203,13 +203,13 @@ class RenPyTerminal(pyte.HistoryScreen):
         for i in range(0, self.height):
             res.append(self.format_line(self.frame, i))
         return res
-    
+
     def __eq__(self, other):
         if not isinstance(other, RenPyTerminal):
             return False
 
         return self.render_buffer is other.render_buffer
-    
+
     @renpy.pure
     def get_line_from_render(self, frame, y):
         try:
@@ -256,7 +256,7 @@ class RenPyTerminal(pyte.HistoryScreen):
     def render(self):
         self.render_buffer = self.get_visible_lines()
         self.frame += 1
-    
+
     @renpy.pure
     def format_line(self, frame, current_y):
         line = self.buffer[current_y]
@@ -290,9 +290,9 @@ class RenPyTerminal(pyte.HistoryScreen):
 
             if char.reverse:
                 bg, fg = fg, bg
-            
-            char_data = char_data if char_data != "\x5B" else "\x5B\x5B"
-            char_data = char_data if char_data != "\x7B" else "\x7B\x7B"
+
+            char_data = char_data if char_data != "\x5b" else "\x5b\x5b"
+            char_data = char_data if char_data != "\x7b" else "\x7b\x7b"
 
             text = ""
             if char.italics:
@@ -324,6 +324,7 @@ class RenPyTerminal(pyte.HistoryScreen):
 
 # Create terminal instance
 terminals = {}
+
 
 @renpy.pure
 def get_terminal(name, command_handler, width, height):

@@ -2,6 +2,7 @@
 init -400 python:
 """
 
+
 class Colors:
     """ANSI color codes"""
 
@@ -30,7 +31,9 @@ class Colors:
     CROSSED = "\033[9m"
     END = "\033[0m"
 
+
 import functools
+
 
 @renpy.pure
 @functools.lru_cache

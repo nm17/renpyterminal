@@ -24,18 +24,19 @@ class BashProcess:
     def start(self):
         if not renpy.windows:
             import pty
+
             self.running = True
             env = {
                 "TERM": "xterm-256color",
                 "COLUMNS": str(self.terminal.width),
                 "LINES": str(self.terminal.height),
-                "LC_ALL": "en_US.UTF-8"
+                "LC_ALL": "en_US.UTF-8",
             }
 
             master_fd_i, slave_fd_i = pty.openpty()
             master_fd_o, slave_fd_o = pty.openpty()
             master_fd_e, slave_fd_e = pty.openpty()
-            
+
             self.process = subprocess.Popen(
                 self.cmd,
                 stdin=slave_fd_i,
@@ -49,17 +50,17 @@ class BashProcess:
             )
 
             # Start IO threads
-            self.stdout_thread = threading.Thread(target=self.read_output, args=(master_fd_o,))
-            self.stderr_thread = threading.Thread(target=self.read_output, args=(master_fd_e,))
+            self.stdout_thread = threading.Thread(
+                target=self.read_output, args=(master_fd_o,)
+            )
+            self.stderr_thread = threading.Thread(
+                target=self.read_output, args=(master_fd_e,)
+            )
             self.stdin_thread = threading.Thread(target=self.write_input)
-            
+
             for thread in [self.stdout_thread, self.stderr_thread, self.stdin_thread]:
                 thread.daemon = True
                 thread.start()
-
-            
-
-            
 
     def read_output(self, stream):
         while self.running:
@@ -99,7 +100,7 @@ class BashProcess:
             except:
                 pass
             self.process = None
-        
+
         for thread in [self.stdout_thread, self.stderr_thread, self.stdin_thread]:
             if thread and thread.is_alive():
                 thread.join(timeout=0.5)
