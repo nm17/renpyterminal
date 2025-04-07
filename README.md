@@ -2,8 +2,6 @@
 
 A powerful terminal plugin for RenPy that supports VT100/ANSI escape codes. 
 
-![Demo example](demo.png)
-
 Based upon the `pyte` Python library. It's not included in the code for legal reasons. You need to install it by calling:
 
 ```
@@ -14,3 +12,8 @@ This repo is not just the library itself. It's a demo RenPy game that contains t
 
 **Sidenote:** contact me on Discord if you want to help with the code (Nick: `nvrm17`, thanks in advance!)...  
 Or you can also send patches to me by email :p
+
+## Gallery
+
+![Demo example](demo.png)
+![Running top example](top-demo.png)
