@@ -1,8 +1,8 @@
 define config.preload_fonts += [
-    "IosevkaTerm-Medium.ttf",
-    "IosevkaTerm-Bold.ttf",
-    "IosevkaTerm-MediumItalic.ttf",
-    "IosevkaTerm-MediumOblique.ttf",
+    "terminal/fonts/IosevkaTerm-Medium.ttf",
+    "terminal/fonts/IosevkaTerm-Bold.ttf",
+    "terminal/fonts/IosevkaTerm-MediumItalic.ttf",
+    "terminal/fonts/IosevkaTerm-MediumOblique.ttf",
 ]
 define config.default_textshader = None
 
