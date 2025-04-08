@@ -72,6 +72,8 @@ screen terminal(name, command_handler, width, height, font_size, fill_screen=Fal
     key "ctrl_K_BACKSPACE" action Function(terminal.handle_backspace)
     key "K_UP" action Function(terminal.terminal_history_up)
     key "K_DOWN" action Function(terminal.terminal_history_down)
+    key "ctrl_K_LEFT" action Function(terminal.move_left)
+    key "ctrl_K_RIGHT" action Function(terminal.move_right)
 
     key "K_PAGEUP" action Function(terminal.handle_pageup)
 

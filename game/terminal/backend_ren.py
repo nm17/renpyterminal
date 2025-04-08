@@ -187,8 +187,10 @@ class RenPyTerminal(pyte.HistoryScreen):
         self.cursor_visible = True
 
     def feed(self, data):
-        # if self.proc and self.proc.poll() is None:
-        #     self.proc.stdin.write(self.current_input + "\r\n")
+        """
+        A wrapper method around the `self.stream.feed` function.
+        Also calls the render function.
+        """
 
         if not type(data) == str:
             raise RuntimeError(f"[[RenPyTerminal]] Invalid data type - {repr(data)}")
@@ -218,7 +220,10 @@ class RenPyTerminal(pyte.HistoryScreen):
             return []
 
     def terminal_history_up(self):
-        if self.command_history:
+        """
+        Get the previously used command and send it to the prompt
+        """
+        if self.command_history and (self.proc is None or self.proc.running == False):
             self.history_index = max(0, self.history_index - 1)
             self.delete_lines(1)
             self.erase_in_display(how=0)
@@ -228,7 +233,10 @@ class RenPyTerminal(pyte.HistoryScreen):
                 self.feed(self.current_input)
 
     def terminal_history_down(self):
-        if self.command_history:
+        """
+        Get the afterwards used command and show it in prompt
+        """
+        if self.command_history and (self.proc is None or self.proc.running == False):
             self.history_index = min(len(self.command_history), self.history_index + 1)
 
             self.delete_lines(1)
@@ -244,16 +252,31 @@ class RenPyTerminal(pyte.HistoryScreen):
             # self.feed(self.prompt + self.current_input)
 
     def handle_char_click(self, x, y):
+        """
+        Handle a character click by moving the cursor to the given position
+        """
         self.cursor_position(y, x)
         pass
 
     def handle_pageup(self):
+        """
+        Handle a PAGEUP key press. Scrolls the terminal to the top.
+        """
         self.prev_page()
 
     def handle_pagedown(self):
+
+        """
+        Handle a PAGEDOWN key press. Scrolls the terminal to the bottom.
+        """
         self.next_page()
 
     def render(self):
+        """
+        Sets the `render_buffer` to the output of `get_visible_lines`.
+
+        TODO: Maybe also add partial rendering of lines?
+        """
         self.render_buffer = self.get_visible_lines()
         self.frame += 1
 
@@ -263,26 +286,6 @@ class RenPyTerminal(pyte.HistoryScreen):
         # Convert pyte characters to styled text
         formatted = []
         for x, char in line.items():
-            # if self.cursor.x == x and self.cursor.y == current_y:
-            #     if self.cursor_visible:
-            #         formatted.append(
-            #             {
-            #                 "data": " ",
-            #                 "background": to_hex_color("#ffffff", isFg=False),
-            #                 "foreground": to_hex_color(char.fg, isFg=True),
-            #             }
-            #         )
-            #     else:
-            #         formatted.append(
-            #             {
-            #                 "data": " ",
-            #                 "background": to_hex_color(char.bg, isFg=False),
-            #                 "foreground": to_hex_color(char.fg, isFg=True),
-            #             }
-            #         )
-
-            #     continue
-
             char_data = char.data
 
             fg = to_hex_color(char.fg, isFg=True)
@@ -327,7 +330,10 @@ terminals = {}
 
 
 @renpy.pure
-def get_terminal(name, command_handler, width, height):
+def get_terminal(name: str, command_handler, width, height) -> RenPyTerminal:
+    """
+    Gets a terminal with a given name or creates a new one
+    """
     terminal = terminals.get(name, None)
     if terminal is None:
         terminal = RenPyTerminal(command_handler, width=width, height=height)

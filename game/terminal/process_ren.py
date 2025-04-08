@@ -10,7 +10,7 @@ import threading
 
 
 class BashProcess:
-    def __init__(self, terminal, cmd):
+    def __init__(self, terminal: RenPyTerminal, cmd: list[str]):
         self.terminal = terminal
         self.cmd = cmd
         self.process = None
@@ -62,7 +62,7 @@ class BashProcess:
                 thread.daemon = True
                 thread.start()
 
-    def read_output(self, stream):
+    def read_output(self, stream: int):
         while self.running:
             try:
                 line = os.read(stream, 2048)
@@ -88,7 +88,7 @@ class BashProcess:
                 break
             time.sleep(0.1)
 
-    def send_command(self, cmd):
+    def send_command(self, cmd: str):
         if self.running:
             self.input_queue.put(cmd)
 
