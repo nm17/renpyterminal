@@ -1,0 +1,19 @@
+[book]
+authors = ["nm17"]
+language = "en"
+multilingual = false
+src = "src"
+title = "RenPyTerminal"
+
+[output.html]
+default-theme = "mocha"
+preferred-dark-theme = "mocha"
+additional-css = [
+  "./theme/catppuccin.css",
+]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
+
+[preprocessor]
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
