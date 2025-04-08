@@ -150,19 +150,39 @@ class RenPyTerminal(pyte.HistoryScreen):
         if self.proc and self.proc.running:
             self.proc.stop()
             self.proc = None
-        self.feed("\r\n")
-        self.feed(self.prompt)
-        self.prompt_location = copy.copy(self.cursor)
+        self.show_prompt()
+
+    def move_left(self):
+        if self.proc is not None and self.proc.running:
+            self.cursor_back()
+        else:
+            prompt_len = len(self.prompt)
+            cursor_pos_x = self.cursor.x
+            if cursor_pos_x <= prompt_len:
+                return
+            self.cursor_back()
+        
+    
+    def move_right(self):
+        if self.proc is not None and self.proc.running:
+            self.cursor_forward()
+        else:
+            prompt_len = len(self.prompt)
+            cursor_pos_x = self.cursor.x
+            if cursor_pos_x <= prompt_len:
+                return
+            self.cursor_forward()
 
     def process_command(self):
+        t = threading.Thread(target=self.process_command_inner, daemon=True)
+        t.start()
+
+    def process_command_inner(self):
 
         self.delete_characters(count=1)
         self.backspace()
         if len(self.current_input) == 0:
-            self.feed("\r\n")
-            self.feed(self.prompt)
-            self.prompt_location = copy.copy(self.cursor)
-            self.cursor_visible = True
+            self.show_prompt()
             renpy.restart_interaction()
             return
 
@@ -180,8 +200,9 @@ class RenPyTerminal(pyte.HistoryScreen):
 
         self.show_prompt()
 
-    def show_prompt(self):
-        self.feed("\r\n")
+    def show_prompt(self, linebreak_before=True):
+        if linebreak_before:
+            self.feed("\r\n")
         self.feed(self.prompt)
         self.prompt_location = copy.copy(self.cursor)
         self.cursor_visible = True
@@ -229,7 +250,8 @@ class RenPyTerminal(pyte.HistoryScreen):
             self.erase_in_display(how=0)
             if self.history_index < len(self.command_history):
                 self.current_input = self.command_history[self.history_index]
-                self.show_prompt()
+
+                self.show_prompt(linebreak_before=False)
                 self.feed(self.current_input)
 
     def terminal_history_down(self):
@@ -241,7 +263,7 @@ class RenPyTerminal(pyte.HistoryScreen):
 
             self.delete_lines(1)
             self.erase_in_display(how=0)
-            self.show_prompt()
+            self.show_prompt(linebreak_before=False)
 
             if self.history_index < len(self.command_history):
                 self.current_input = self.command_history[self.history_index]
