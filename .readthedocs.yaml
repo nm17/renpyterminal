@@ -4,12 +4,13 @@ build:
   os: ubuntu-lts-latest
   tools:
     rust: latest
+    python: "3"
   jobs:
-    install:
-      - cargo install mdbook
-      - cargo install mdbook-mermaid
     build:
       html:
-        # For an example book..
-        # - mdbook init docs
+        - cargo install mdbook
+        - cargo install mdbook-mermaid
+        - asdf reshim rust
+        - pip install git+https://github.com/tgolsson/python-apibook.git
+        - python-apibook game/terminal docs/src --summary-template-file docs/SUMMARY.tmpl
         - mdbook build docs --dest-dir $READTHEDOCS_OUTPUT/html
