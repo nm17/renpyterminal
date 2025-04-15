@@ -15,5 +15,5 @@ Or you can also send patches to me by email :p
 
 ## Gallery
 
-![Demo example](demo.png)
-![Running top example](top-demo.png)
+![Demo example](docs/src/images/demo.png)
+![Running top example](docs/src/images/top-demo.png)
