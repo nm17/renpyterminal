@@ -6,10 +6,15 @@ define config.preload_fonts += [
 ]
 define config.default_textshader = None
 
+# define config.optimize_text_rendering = True
+# define config.texture_size_limit = 2048
+define config.cache_surfaces = False
+
 screen terminal(name, command_handler, width, height, font_size, fill_screen=False):
     $ terminal = get_terminal(name, command_handler, width, height)
     $ renpy.const("terminal")
     $ terminal.command_handler = command_handler
+    # $ print("ASD")
     
 
     zorder 100
@@ -37,21 +42,23 @@ screen terminal(name, command_handler, width, height, font_size, fill_screen=Fal
                 hbox:
                     style "terminal__lines"
 
-                    for x in range(len(line)):
-                        $ ch = line[x]
+                    for i in range(terminal.width):
+                        $ ch = line[i]
                         $ bg = ch["background"]
                         $ fg = ch["foreground"]
                         $ data = ch["data"]
-                        window:
+                        frame:
                             style "terminal__char_box"
                             modal False
-                            background bg
                             padding (0, 0)
                             ysize font_size
                             xsize font_size_half
+                            default_focus False
+                            transclude
+                            background Solid(bg)
 
                             text data:
-
+                                default_focus False
                                 ysize font_size
                                 xsize font_size_half
                                 color fg
@@ -62,6 +69,7 @@ screen terminal(name, command_handler, width, height, font_size, fill_screen=Fal
                                 justify False
     
     input:
+        default_focus False
         changed terminal.process_hidden_input
         color "#ff000000"
         xsize 0
@@ -74,6 +82,8 @@ screen terminal(name, command_handler, width, height, font_size, fill_screen=Fal
     key "K_DOWN" action Function(terminal.terminal_history_down)
     key "ctrl_K_LEFT" action Function(terminal.move_left)
     key "ctrl_K_RIGHT" action Function(terminal.move_right)
+    key "K_LEFT" action Function(terminal.move_left)
+    key "K_RIGHT" action Function(terminal.move_right)
 
     key "K_PAGEUP" action Function(terminal.handle_pageup)
 
@@ -83,3 +93,20 @@ screen terminal(name, command_handler, width, height, font_size, fill_screen=Fal
     timer 0.5 repeat True action Function(terminal.toggle_cursor)
 
     # timer 1/5 repeat True action Function(terminal.render)
+    
+
+
+screen terminal_sm(name, command_handler, width, height, font_size, fill_screen=False):
+    python:
+        screen = screens_by_name["terminal"][None]
+        d = ScreenDisplayable(screen, None, None, scope={"_args": [name, command_handler, width, height, font_size, fill_screen]})
+
+        def event(ev, x, y, at):
+            global d
+            return d.event(ev, x, y, at)
+
+        sm = SpriteManager(update=(lambda at: 999999), ignore_time=True)
+        spr = sm.create(d)
+        spr.events = True
+    
+    add sm

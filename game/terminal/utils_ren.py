@@ -48,17 +48,18 @@ def to_hex_color(color_str, isFg):
     Returns:
         str: Hex color code (or default if invalid)
     """
-    # Check if input is a valid hex color code (3, 4, 6, or 8 digits with optional #)
-    if re.match(
-        r"^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", color_str
-    ):
-        return color_str
 
     if color_str == "default":
         if isFg:
             return "#ffffff"
         else:
             return "#000000"
+
+    # Check if input is a valid hex color code (3, 4, 6, or 8 digits with optional #)
+    if re.match(
+        r"^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", color_str
+    ):
+        return color_str
 
     # ANSI color name to hex mapping (standard 16-color palette)
     ansi_colors = {

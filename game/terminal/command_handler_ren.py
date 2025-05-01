@@ -7,7 +7,7 @@ import threading
 
 def command_handler(self):
     if self.current_input == "help":
-        self.feed("Available commands: help, about, clear, exit\r\n")
+        self.feed("Available commands: help, about, clear, exit")
     elif self.current_input == "clear":
         self.reset()
 

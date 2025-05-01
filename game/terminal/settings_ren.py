@@ -4,6 +4,7 @@ init -500 python:
 
 __all__ = []
 
+
 def setup_fonts():
     # (font, bold, italics)
     config.font_replacement_map["terminal", False, False] = (
@@ -26,5 +27,6 @@ def setup_fonts():
         False,
         False,
     )
+
 
 setup_fonts()
