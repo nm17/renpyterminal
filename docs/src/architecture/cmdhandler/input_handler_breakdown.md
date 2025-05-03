@@ -31,7 +31,7 @@ def command_handler(self):
             if inp == b"\r\n":
                 # Signal that we have finished listening to the user's key strokes.
                 value_entered_event.set()
-                return -1
+                return RTSpecial.PTYHANDLER__PREVENT_DEFAULT
             self.extra_state.typed_val += inp.decode("utf-8")
         
         # Set our in_handlers accordingly
@@ -45,6 +45,8 @@ def command_handler(self):
             self.reset_handlers()
             # ...Any custom logic that you wish to implement goes here...
             self.print(f"\r\nYou typed: {self.extra_state.typed_val}")
+
+            self.show_prompt()
 
         t = threading.Thread(target=resp)
         t.daemon = True
