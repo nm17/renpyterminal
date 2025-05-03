@@ -34,7 +34,7 @@ def command_handler(self):
                 return
             if inp == b"\r\n":
                 barrier.wait()
-                return -1
+                return RTSpecial.PTYHANDLER__PREVENT_DEFAULT
             typed_val += inp.decode("utf-8")
         self.in_handlers = [pty_handler, self.pty_render_handler]
         def resp():
@@ -43,12 +43,12 @@ def command_handler(self):
             barrier.wait()
             self.reset_handlers()
             self.print(f"\r\nYou typed: {typed_val}")
-            # self.show_prompt()
+            self.show_prompt()
         
         t = threading.Thread(target=resp)
         t.daemon = True
         t.start()
-        return -1
+        return RTSpecial.CMDHANDLER__PREVENT_DEFAULT
         
     elif self.current_input == "about":
         self.print(f"{Colors.RED}Ren'Py Terminal Emulator{Colors.END}\r\n")
