@@ -14,8 +14,6 @@ class BashProcess:
         self.terminal = terminal
         self.cmd = cmd
         self.process = None
-        self.output_queue = terminal.pty_out_queue
-        self.input_queue = terminal.pty_in_queue
         self.running = False
         self.stdout_thread = None
         self.stderr_thread = None
@@ -23,7 +21,7 @@ class BashProcess:
 
     def start(self):
         if self.running:
-            raise RuntimeError("[Process] BashProcess is already running something!")
+            raise RuntimeError("[RenPyTerminal] BashProcess is already running something! This should not happen.")
         if not renpy.windows:
             import pty
 
@@ -51,7 +49,7 @@ class BashProcess:
                     shell=False,
                 )
             except FileNotFoundError as err:
-                self.terminal.pty_out_queue.put(
+                self.terminal.put_output(
                     f"{Colors.RED}{err}{Colors.END}".encode("utf-8")
                 )
 
@@ -65,7 +63,6 @@ class BashProcess:
             self.process_watchdog_thread = threading.Thread(
                 target=self.process_watchdog,
             )
-            # self.stdin_thread = threading.Thread(target=self.write_input)
 
             for thread in [
                 self.stdout_thread,
@@ -76,29 +73,24 @@ class BashProcess:
                 thread.start()
 
     def process_watchdog(self):
-        while self.running:
-            time.sleep(0.1)
-            pass
-        self.running = False
-        self.terminal.reset_handlers()
+        self.process.wait()
+        self.stop()
 
     def read_output(self, stream: int):
         while self.running:
             try:
                 line = os.read(stream, 2048)
                 if line:
-                    self.output_queue.put(line)
+                    self.terminal.put_output(line)
                 else:
                     time.sleep(0.1)
             except (ValueError, IOError):
-                print("!!!!!!!!!")
-                self.terminal.reset_handlers()
-                self.running = False
+                self.stop()
                 break
         self.terminal.reset_handlers()
-        self.running = False
+        self.stop()
 
-    def handle_in(self, terminal, inp):
+    def pty_bashprocess_handle_in(self, terminal, inp):
         try:
             self.process.stdin.write(inp)
             self.process.stdin.flush()
@@ -106,26 +98,30 @@ class BashProcess:
             pass
         except (IOError, ValueError, AttributeError):
             print("!!!!!!!!!")
-            self.terminal.reset_handlers()
-            self.running = False
+            self.stop()
 
     def send_command(self, cmd: str):
         """TODO: REMOVE"""
         if self.running:
-            self.input_queue.put(cmd)
+            self.terminal.put_input(cmd)
 
     def stop(self):
+        if not self.running:
+            return
+        self.running = False
         if self.process:
             try:
                 self.process.terminate()
             except:
                 pass
             self.process = None
-            self.running = False
 
-            self.terminal.reset_handlers()
+        self.terminal.reset_handlers()
+        
 
         # Might cause problems?
-        for thread in [self.stdout_thread, self.stderr_thread]:
-            if thread and thread.is_alive():
-                thread.join(timeout=0.5)
+        # for thread in [self.stdout_thread, self.stderr_thread]:
+        #     if thread and thread.is_alive():
+        #         thread.join(timeout=0.5)
+        
+        self.terminal.show_prompt()
