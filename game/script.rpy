@@ -15,7 +15,7 @@ label start:
 
     show eileen happy
 
-    show screen terminal("main", command_handler, 80, 24, 32, True)
+    show screen terminal("main", command_handler, 80, 24, 24, True)
     # $ renpy.profile_screen("terminal", True, True, True, True, True, True, False)
 
     e "Вы создали новую игру Ren'Py."

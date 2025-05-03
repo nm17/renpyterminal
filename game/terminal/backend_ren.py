@@ -25,9 +25,9 @@ DEFAULT_MOTD = (
 DEFAULT_PROMPT = (
     f"{Colors.GREEN}user@renpy{Colors.END}:{Colors.LIGHT_BLUE}~{Colors.END}$ "
 )
+DEFAULT_PROMPT_LEN = len("user@renpy:~$ ")
 
-PREVENT_DEFAULT = -1
-ENTER_EVENT = -2
+
 
 from collections import defaultdict
 
@@ -66,6 +66,9 @@ class RenPyTerminal(pyte.HistoryScreen):
         command_handler,
         motd=DEFAULT_MOTD,
         prompt=DEFAULT_PROMPT,
+        prompt_len=DEFAULT_PROMPT_LEN,
+        print_motd=True,
+        print_prompt_on_start=True,
         width=80,
         height=24,
     ):
@@ -77,18 +80,26 @@ class RenPyTerminal(pyte.HistoryScreen):
         self.stream.attach(self)
         self.current_input = ""
         self.prompt = prompt
+        self.prompt_len = DEFAULT_PROMPT_LEN
         self.command_history = []
         self.history_index = 0
         self.cursor_timer_visible = True
         self.cursor_user_visible = True
+        self.cursor = pyte.screens.Cursor(0, 0)
         self.fd = None
         self.proc = None
         self.update_timer = None
         self.barrier = None
         self.done_barrier = None
+        self.extra_state = {}
         self.running = False
         self.motd = motd
         self.frame = 0
+
+        self.prev_data = defaultdict(lambda: defaultdict(lambda: " "))
+
+        self.cursor_symbol_pos = copy.copy(self.cursor)
+        self.cursor_symbol_prev = pyte.screens.Char(data=" ")
 
         self.pty_out_queue = queue.Queue()
         self.pty_in_queue = queue.Queue()
@@ -97,14 +108,18 @@ class RenPyTerminal(pyte.HistoryScreen):
 
         self.reset()
 
-        self.feed(motd)
+        self._queue_update_event = threading.Event()
 
-        self.show_prompt()
+        if print_motd:
+            self.print(motd)
+
+        if print_prompt_on_start:
+            self.show_prompt()
 
         self.default_in_handlers = [
             self.pty_render_handler,
-            self.pty_handle_backspace,
             self.pty_default_process_command,
+            self.pty_handle_backspace,
             self.pty_move_handler,
             self.pty_process_input,
         ]
@@ -113,82 +128,87 @@ class RenPyTerminal(pyte.HistoryScreen):
         self.queue_thread = threading.Thread(target=self.queue_thread_handler)
         self.queue_thread.daemon = True
         self.queue_thread.start()
+    
+    def __getstate__(self):
+        return {
+            "buffer": dict(self.buffer),
+        }
+    
+    def __setstate__(self, data: dict):
+        for (k, v) in data.items():
+            self.__dict__[k] = v
+    
+    def print(self, val):
+        if type(val) == bytes:
+            pass
+        else:
+            val = val.encode("utf-8")
+        self.put_output(val)
 
     @renpy.pure
     def get_empty_render_buffer(self):
-        return defaultdict(
-            default_factory=lambda: defaultdict(
-                default_factory=lambda: {
-                    "data": "",
-                    "background": "default",
-                    "foreground": "default",
-                }
-            )
-        )
+        return ""
 
     def reset_handlers(self):
         self.in_handlers = copy.copy(self.default_in_handlers)
         self.out_handlers = copy.copy(self.default_out_handlers)
 
+    def _set_update_event(self):
+        self._queue_update_event.set()
+
+    def put_output(self, out):
+        rt_qth_logger.debug("PUT[out]: %s", repr(out))
+        self.pty_out_queue.put(out)
+        self._set_update_event()
+
+    def put_input(self, inp):
+        rt_qth_logger.debug("PUT[in]: %s", repr(inp))
+        self.pty_in_queue.put(inp)
+        self._set_update_event()
+
     def queue_thread_handler(self):
         while True:
-            if self.pty_in_queue.empty() and self.pty_out_queue.empty():
-                time.sleep(0.025)
-                continue
+            self._queue_update_event.wait()
+            self._queue_update_event.clear()
             try:
-                inp = self.pty_in_queue.get_nowait()
-                print("[IN]", inp, sep="\t")
-                for handler in self.in_handlers:
-                    res = handler(terminal=self, inp=inp)
-                    if res == PREVENT_DEFAULT:
-                        break
+                while inp := self.pty_in_queue.get_nowait():
+                    rt_qth_logger.debug("IN[%s]: %s", str(type(inp)), repr(inp))
+
+                    for handler in self.in_handlers:
+                        res = handler(terminal=self, inp=inp)
+                        if res == RTSpecial.PTYHANDLER__PREVENT_DEFAULT:
+                            break
             except queue.Empty:
                 pass
-
+            
             try:
-                out = self.pty_out_queue.get_nowait()
+                while out := self.pty_out_queue.get_nowait():
+                    rt_qth_logger.debug("OUT[%s]: %s", str(type(out)), repr(out))
 
-                print("[OUT]", out, sep="\t")
-                # self.feed(out)
-
-                for handler in self.out_handlers:
-                    res = handler(terminal=self, out=out)
-                    if res == PREVENT_DEFAULT:
-                        break
+                    for handler in self.out_handlers:
+                        res = handler(terminal=self, out=out)
+                        if res == RTSpecial.PTYHANDLER__PREVENT_DEFAULT:
+                            break
             except queue.Empty:
                 pass
 
             self.frame += 1
-
-    # def update_bash_output(self):
-    #     while self.proc and self.proc.running:
-    #         try:
-    #             while True:
-    #                 output = self.proc.output_queue.get()
-    #                 self.stream.feed(output)
-
-    #                 self.render()
-    #                 renpy.restart_interaction()
-    #         except queue.Empty:
-    #             pass
-
-    #         time.sleep(0.1)
-
-    #     self.render()
 
     def launch_program(self, cmd):
         """
         Launch a given program using
         """
         if not renpy.linux:
+            rt_logger.warning(
+                "Launching programs does not work on any OS besides windows yet!"
+            )
             return
         if self.proc:
             self.proc.stop()
             self.reset_handlers()
 
         self.proc = BashProcess(self, cmd)
-        self.in_handlers = [self.proc.handle_in]
-        # self.in_handlers.remove(self.proc.handle_in)
+        self.in_handlers = [self.proc.pty_bashprocess_handle_in]
         self.proc.start()
 
     def bell(self, *args):
@@ -196,50 +216,79 @@ class RenPyTerminal(pyte.HistoryScreen):
             "terminal/audio/beep.wav", channel="sound", relative_volume=0.8
         )
 
-    def toggle_cursor(self):
-        self.cursor_timer_visible = not self.cursor_timer_visible
-        # try:
-        #     self.render_buffer[self.cursor.y]
-        # except IndexError:
-        #     self.render_buffer[self.cursor.y] = []
-        if self.cursor_timer_visible and self.cursor_user_visible:
-            self.render_buffer[self.cursor.y][self.cursor.x] = {
-                "data": " ",
-                "background": to_hex_color("#00000000", isFg=False),
-                "foreground": to_hex_color("#ffffff", isFg=True),
-            }
+    def toggle_cursor(self, value=None):
+        """
+        Handle terminal cursor blinking and explict calls to show or hide it.
+        """
+        if value is None:
+            self.cursor_timer_visible = not self.cursor_timer_visible
         else:
-            self.render_buffer[self.cursor.y][self.cursor.x] = {
-                "data": " ",
-                "background": to_hex_color("#ffffff", isFg=False),
-                "foreground": to_hex_color("#000000", isFg=True),
-            }
+            self.cursor_timer_visible = value
+
+        if self.cursor_timer_visible and self.cursor_user_visible:
+            c = self.buffer[self.cursor.y][self.cursor.x]._asdict()
+            c["blink"] = True
+            self.buffer[self.cursor.y][self.cursor.x] = pyte.screens.Char(**c)
+        else:
+            c = self.buffer[self.cursor.y][self.cursor.x]._asdict()
+            c["blink"] = False
+            self.buffer[self.cursor.y][self.cursor.x] = pyte.screens.Char(**c)
+        # print(lines)
+        # self.render_buffer = "\r\n".join(list(map(lambda el: "".join(el), lines)))
+        self.render()
         self.frame += 1
         renpy.restart_interaction()
 
     def handle_backspace(self):
         # Destructive backspace
+        move_to = self.prompt_len + len(self.current_input)
+
+        # print(self.cursor.x - move_to)
+        if self.cursor.x - move_to < 0:
+            self.cursor_position(self.cursor.y + 1, move_to + 1)
+            self.bell()
+            renpy.restart_interaction()
+            return
+
         if len(self.current_input) == 0:
+            
             # self.delete_characters(count=1)
             self.bell()
             return
-        print(self.current_input)
-        self.pty_in_queue.put((pyte.control.BS + " " + pyte.control.BS).encode("utf-8"))
+        # print(self.current_input)
+        self.put_input((pyte.control.BS + " " + pyte.control.BS).encode("utf-8"))
 
     def pty_handle_backspace(self, terminal, inp):
         if inp != (pyte.control.BS + " " + pyte.control.BS).encode("utf-8"):
             return
-        print("BS!")
+
+        move_to = self.prompt_len + len(self.current_input)
+
+
+        if self.cursor.x - move_to < -1:
+            self.cursor = self.prompt_location
+            renpy.restart_interaction()
+            return RTSpecial.PTYHANDLER__PREVENT_DEFAULT
 
         self.current_input = self.current_input[:-1]
-        self.cursor_timer_visible = True
+        
+        self.cursor_position(self.cursor.y + 1, move_to)
+
+        if self.cursor.x - move_to > -1:
+            renpy.restart_interaction()
+            return RTSpecial.PTYHANDLER__PREVENT_DEFAULT
+        
+        
+        self.prev_data[self.cursor.y - 1][self.cursor.x] = " "
+        self.delete_characters(count=1)
+        self.toggle_cursor(True)
         renpy.restart_interaction()
-        return PREVENT_DEFAULT
+        return RTSpecial.PTYHANDLER__PREVENT_DEFAULT
 
     def process_hidden_input(self, value):
         # TODO: Remake this using a custom InputField class impl?
         val = value[-1]
-        self.pty_in_queue.put(val.encode("utf-8"))
+        self.put_input(val.encode("utf-8"))
 
     def pty_process_input(self, terminal, inp):
         # self.cursor = self.prompt_location
@@ -253,7 +302,7 @@ class RenPyTerminal(pyte.HistoryScreen):
         self.current_input += inp.decode("utf-8")
 
         # Reset cursor visibility when typing
-        self.cursor_timer_visible = True
+        self.toggle_cursor(True)
 
         renpy.restart_interaction()
 
@@ -275,17 +324,17 @@ class RenPyTerminal(pyte.HistoryScreen):
         self.feed(to_feed)
 
     def handle_ctrlc(self):
-        print("CTRL+C!")
+        rt_logger.info("Got CTRL+C!")
         if self.proc and self.proc.running:
             self.proc.stop()
             self.proc = None
         self.show_prompt()
 
     def move_left(self):
-        self.pty_in_queue.put((pyte.control.ESC + "[1D").encode("utf-8"))
+        self.put_input((pyte.control.ESC + "[1D").encode("utf-8"))
 
     def move_right(self):
-        self.pty_in_queue.put((pyte.control.ESC + "[1C").encode("utf-8"))
+        self.put_input((pyte.control.ESC + "[1C").encode("utf-8"))
 
     def pty_move_handler(self, terminal, inp):
         if not (
@@ -298,14 +347,14 @@ class RenPyTerminal(pyte.HistoryScreen):
 
         prompt_len = len(self.prompt)
         cursor_pos_x = self.cursor.x
-        return PREVENT_DEFAULT
+        return RTSpecial.PTYHANDLER__PREVENT_DEFAULT
 
     def process_command(self):
-        self.pty_in_queue.put(b"\r\n")
-        self.pty_in_queue.put(ENTER_EVENT)
+        self.put_input(b"\r\n")
+        self.put_input(RTSpecial.PTYEVENT__ENTER)
 
     def pty_default_process_command(self, terminal, inp):
-        if inp != ENTER_EVENT:
+        if inp != RTSpecial.PTYEVENT__ENTER:
             return
 
         if len(self.current_input) == 0:
@@ -314,31 +363,27 @@ class RenPyTerminal(pyte.HistoryScreen):
             self.current_input = ""
             return
 
-        # if self.current_input == "exit" and self.proc:
-        #     self.proc.stop()
-        #     self.proc = None
-        #     self.pty_out_queue.put("Bash session terminated\r\n")
-
         self.command_history.append(self.current_input)
         self.history_index = len(self.command_history)
-        # self.pty_out_queue.put(b"\r\n")
 
         self.current_input = self.current_input.strip()
-        print(f"[CMDHandler]\t{self.current_input!r}")
+        rt_cmdhandler_logger.info(f"Called %s", self.current_input)
 
-        (self.command_handler)(self)
+        res = (self.command_handler)(self)
+
         self.current_input = ""
 
-        self.show_prompt()
+        if res != RTSpecial.CMDHANDLER__PREVENT_DEFAULT:
+            self.show_prompt()
 
-        return
+        return RTSpecial.PTYHANDLER__PREVENT_DEFAULT
 
     def show_prompt(self, linebreak_before=True):
         if linebreak_before:
-            self.pty_out_queue.put(b"\r\n")
-        self.pty_out_queue.put(self.prompt.encode("utf-8"))
+            self.put_output(b"\r\n")
+        self.put_output(self.prompt.encode("utf-8"))
         self.prompt_location = copy.copy(self.cursor)
-        self.cursor_timer_visible = True
+        self.toggle_cursor(True)
         renpy.restart_interaction()
 
     def feed(self, data):
@@ -351,15 +396,13 @@ class RenPyTerminal(pyte.HistoryScreen):
             data = data.encode("utf-8")
         self.stream.feed(data)
 
-        # self.dirty.clear()
         self.render()
-        # renpy.restart_interaction()
 
     def get_visible_lines(self):
 
         res = self.get_empty_render_buffer()
         for i in range(0, self.height):
-            res[i] = self.format_line(self.frame, i)
+            res += (self.format_line(self.frame, i))
         return res
 
     def __eq__(self, other):
@@ -387,8 +430,8 @@ class RenPyTerminal(pyte.HistoryScreen):
                 self.current_input = self.command_history[self.history_index]
                 self.current_input = self.current_input.strip()
                 self.show_prompt(linebreak_before=False)
-                self.pty_out_queue.put(self.current_input.encode("utf-8"))
-            renpy.restart_interaction()
+                self.put_output(self.current_input.encode("utf-8"))
+            # renpy.restart_interaction()
 
     def terminal_history_down(self):
         """
@@ -404,12 +447,9 @@ class RenPyTerminal(pyte.HistoryScreen):
             if self.history_index < len(self.command_history):
                 self.current_input = self.command_history[self.history_index]
                 self.current_input = self.current_input.strip()
-                self.pty_out_queue.put(self.current_input.encode("utf-8"))
+                self.put_output(self.current_input.encode("utf-8"))
             else:
                 self.current_input = ""
-            renpy.restart_interaction()
-
-            # self.feed(self.prompt + self.current_input)
 
     def handle_char_click(self, x, y):
         """
@@ -446,9 +486,7 @@ class RenPyTerminal(pyte.HistoryScreen):
     def format_line(self, frame, current_y):
         line = self.buffer[current_y]
         # Convert pyte characters to styled text
-        formatted = defaultdict(
-            lambda: {"data": "", "background": "#00000000", "foreground": "#00000000"}
-        )
+        formatted = ""
         for x, char in line.items():
             char_data = char.data
 
@@ -461,6 +499,24 @@ class RenPyTerminal(pyte.HistoryScreen):
             char_data = char_data if char_data != "\x5b" else "\x5b\x5b"
             char_data = char_data if char_data != "\x7b" else "\x7b\x7b"
 
+
+            if fg is None:
+                fg = to_hex_color("default", isFg=True)
+            if char.blink:
+                self.prev_data[current_y][x] = char.data
+                c = self.buffer[current_y][x]._asdict()
+                assert char.data == c["data"]
+                c["blink"] = False
+                c["data"] = "█"
+                self.buffer[current_y][x] = pyte.screens.Char(**c)
+                char = self.buffer[current_y][x]
+            elif char.data == "█":
+                c = self.buffer[current_y][x]._asdict()
+                assert char.data == c["data"]
+                c["blink"] = False
+                c["data"] = self.prev_data[current_y][x]
+                self.buffer[current_y][x] = pyte.screens.Char(**c)
+
             text = ""
             if char.italics:
                 text += "{i}"
@@ -470,7 +526,11 @@ class RenPyTerminal(pyte.HistoryScreen):
                 text += "{s}"
             if char.underscore:
                 text += "{u}"
+            
+            text += "{color=" + fg + "}"
             text += char_data
+            text += "{/color}"
+            
             if char.bold:
                 text += "{/b}"
             if char.strikethrough:
@@ -480,35 +540,78 @@ class RenPyTerminal(pyte.HistoryScreen):
             if char.underscore:
                 text += "{/u}"
 
-            if bg == "#000000":
-                # Make transparent
-                bg = "#00000000"
-            if bg is None:
-                bg = to_hex_color("default", isFg=False)
 
-            # if fg == "#000000":
-            #     # Make transparent
-            #     fg = "#00000000"
-            if fg is None:
-                fg = to_hex_color("default", isFg=True)
-
-            formatted[x] = {"data": text, "background": bg, "foreground": fg}
+            formatted += text
 
         # self.dirty.clear()
-        return formatted
+        return formatted.ljust(self.width, " ") + "\r\n"
+
+
+class TermInputField(InputValue):
+    """
+    A nifty bodge to prevent the user from moving the cursor inside
+    the hidden input field with something like CTRL+K_LEFT or CTRL+K_RIGHT
+    """
+    def __init__(self, terminal):
+        super().__init__()
+
+        self.terminal = terminal
+
+    def get_text(self):
+        return ""
+    
+    def set_text(self, s):
+        # For some reason, InputValues in RenPy love to call set_text with
+        # an empty value before calling it with what the user actually typed.
+        # This prevents an empty string being handled as something that the user typed.
+        if len(s) == 0:
+            return
+        self.terminal.process_hidden_input(s)
 
 
 # Create terminal instance
-terminals = {}
+# persistent._seen_ever = {}
+
+_terminals = {}
 
 
-@renpy.pure
+# real_save_persistent = renpy.save_persistent
+
+# def new_save_persistent():
+#     return
+#     if _terminal_states is None:
+#         print("Nothing to do!")
+#         real_save_persistent()
+#         return
+#     for (name, terminal) in terminals.items():
+#         _terminal_states[name] = {}
+    
+#     real_save_persistent()
+
+# renpy.save_persistent = new_save_persistent
+# import json
+
+# def jsoncallback(d):
+#     print("TERMINAL STATES SAVE!!!")
+#     store.terminal_states = dict([(k,v.__getstate__()) for (k,v) in _terminals.items()])
+#     # print(store.terminal_states)
+    
+
+# config.save_json_callbacks.append(jsoncallback)
+
+
 def get_terminal(name: str, command_handler, width, height) -> RenPyTerminal:
     """
     Gets a terminal with a given name or creates a new one
     """
-    terminal = terminals.get(name, None)
+    global _terminals
+    # if store.terminal_states is None:
+        
+    #     store.terminal_states = {}
+    terminal = _terminals.get(name, None)
     if terminal is None:
         terminal = RenPyTerminal(command_handler, width=width, height=height)
-        terminals[name] = terminal
+        _terminals[name] = terminal
+    
+
     return terminal

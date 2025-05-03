@@ -18,3 +18,5 @@
         - The definitions for the `terminal` screen UI. 
     - `utils_ren.rpy`
         - Various utilities that are of general use.
+    - `consts_ren.rpy`
+        - A place to store all the constant values.

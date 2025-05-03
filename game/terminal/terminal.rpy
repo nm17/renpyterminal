@@ -1,3 +1,5 @@
+
+
 define config.preload_fonts += [
     "terminal/fonts/IosevkaTerm-Medium.ttf",
     "terminal/fonts/IosevkaTerm-Bold.ttf",
@@ -17,7 +19,7 @@ screen terminal(name, command_handler, width, height, font_size, fill_screen=Fal
     # $ print("ASD")
     
 
-    zorder 100
+    zorder -100
     modal True
 
     $ ysize_val = (font_size * height + 20 * 2 + 10) if not fill_screen else None
@@ -28,6 +30,7 @@ screen terminal(name, command_handler, width, height, font_size, fill_screen=Fal
         xfill True
         yfill False
         ysize ysize_val
+        background to_hex_color("default", isFg=False)
 
         style "terminal"
         
@@ -37,40 +40,27 @@ screen terminal(name, command_handler, width, height, font_size, fill_screen=Fal
             spacing 0
             style "terminal__columns"
             # Existing terminal output
-            for y in range(terminal.height):
-                $ line = terminal.get_line_from_render(terminal.frame, y)
-                hbox:
-                    style "terminal__lines"
+            $ line = terminal.render_buffer
+            text line:
+                default_focus False
+                adjust_spacing False
+                xfill True
+                yfill True
+                size font_size
+                font "terminal"
+                hinting "bytecode"
+                shaper "harfbuzz"
+                justify False
+                layout "nobreak"
+                line_leading 0
+                line_spacing 0
+                kerning 0
 
-                    for i in range(terminal.width):
-                        $ ch = line[i]
-                        $ bg = ch["background"]
-                        $ fg = ch["foreground"]
-                        $ data = ch["data"]
-                        frame:
-                            style "terminal__char_box"
-                            modal False
-                            padding (0, 0)
-                            ysize font_size
-                            xsize font_size_half
-                            default_focus False
-                            transclude
-                            background Solid(bg)
-
-                            text data:
-                                default_focus False
-                                ysize font_size
-                                xsize font_size_half
-                                color fg
-                                size font_size
-                                font "terminal"
-                                hinting "none"
-                                shaper "freetype"
-                                justify False
     
     input:
+        value TermInputField(terminal)
         default_focus False
-        changed terminal.process_hidden_input
+        # changed terminal.process_hidden_input
         color "#ff000000"
         xsize 0
         ysize 0
