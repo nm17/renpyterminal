@@ -5,6 +5,6 @@
         "**/*.rpymc": true,
         "**/cache/": true,
         "**/mermaid-init.js": true,
-        "**/mermaid.min.js": true,
+        "**/mermaid.min.js": true
     }
 }

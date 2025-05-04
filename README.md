@@ -2,6 +2,8 @@
 
 A powerful terminal plugin for RenPy that supports VT100/ANSI escape codes. 
 
+Documentation: https://renpyterminal.readthedocs.io/en/latest/
+
 Based upon the `pyte` Python library. It's not included in the code for legal reasons. You need to install it by calling:
 
 ```

@@ -6,42 +6,55 @@ define config.preload_fonts += [
     "terminal/fonts/IosevkaTerm-MediumItalic.ttf",
     "terminal/fonts/IosevkaTerm-MediumOblique.ttf",
 ]
-define config.default_textshader = None
 
-# define config.optimize_text_rendering = True
-# define config.texture_size_limit = 2048
 define config.cache_surfaces = False
+define config.keyword_after_python = True
 
-screen terminal(name, command_handler, width, height, font_size, fill_screen=False):
-    $ terminal = get_terminal(name, command_handler, width, height)
-    $ renpy.const("terminal")
-    $ terminal.command_handler = command_handler
-    # $ print("ASD")
+define terminal_zorder = -100
+define terminal_modal = False
+
+screen terminal(
+    name="main",
+    command_handler=None,
+    zorder=-100,
+    modal=True,
+    font_size=24,
+    width=80,
+    height=24,
+    fill_x=True,
+    fill_y=True,
+    no_cursor=False,
+    **properties
+):
     
+    zorder terminal_zorder
+    modal terminal_modal
 
-    zorder -100
-    modal True
+    $ terminal = get_terminal(name, command_handler, width=width, height=height, **properties)
+    $ terminal.command_handler = command_handler    
 
-    $ ysize_val = (font_size * height + 20 * 2 + 10) if not fill_screen else None
+    $ ysize_val = (font_size * height + 20 * 2 + 10) if not fill_y else None
     $ font_size_half = int(font_size / 2)
     
 
     frame:
-        xfill True
-        yfill False
-        ysize ysize_val
+        xfill fill_x
+        yfill fill_y
         background to_hex_color("default", isFg=False)
 
         style "terminal"
         
+        # text str(terminal.frame):
+        #     xsize 0
+        #     ysize 0
 
         padding (20, 20)
         vbox:
             spacing 0
             style "terminal__columns"
             # Existing terminal output
-            $ line = terminal.render_buffer
-            text line:
+
+            text terminal.get_render(terminal.frame):
                 default_focus False
                 adjust_spacing False
                 xfill True
@@ -80,7 +93,10 @@ screen terminal(name, command_handler, width, height, font_size, fill_screen=Fal
     key "K_PAGEDOWN" action Function(terminal.handle_pagedown)
     key "ctrl_K_c" action Function(terminal.handle_ctrlc)
 
-    timer 0.5 repeat True action Function(terminal.toggle_cursor)
+    if not no_cursor:
+        timer 0.5 repeat True action Function(terminal.toggle_cursor)
+    # else:
+    #     timer 0.5 repeat True action Function(terminal.render)
 
     # timer 1/5 repeat True action Function(terminal.render)
     
