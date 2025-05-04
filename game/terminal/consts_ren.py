@@ -16,3 +16,6 @@ class RTSpecial(IntEnum):
 rt_logger = logging.getLogger("RenPyTerminal")
 rt_qth_logger = rt_logger.getChild("QueueThreadHandler")
 rt_cmdhandler_logger = rt_logger.getChild("CommandHandler")
+rt_logger.setLevel(logging.DEBUG)
+rt_qth_logger.setLevel(logging.DEBUG)
+rt_cmdhandler_logger.setLevel(logging.DEBUG)

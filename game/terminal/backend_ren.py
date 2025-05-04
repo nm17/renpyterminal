@@ -68,9 +68,13 @@ class RenPyTerminal(pyte.HistoryScreen):
         prompt=DEFAULT_PROMPT,
         prompt_len=DEFAULT_PROMPT_LEN,
         print_motd=True,
+        print_prompt=True,
         print_prompt_on_start=True,
+        no_default_in_handling=False,
+        no_default_out_handling=False,
         width=80,
         height=24,
+        **kwargs
     ):
         self.width = width
         self.height = height
@@ -109,10 +113,13 @@ class RenPyTerminal(pyte.HistoryScreen):
         self.reset()
 
         self._queue_update_event = threading.Event()
-
+        
+        self.print_motd = print_motd
         if print_motd:
             self.print(motd)
 
+        self.print_prompt_on_start = print_prompt_on_start
+        self.print_prompt = print_prompt
         if print_prompt_on_start:
             self.show_prompt()
 
@@ -124,6 +131,14 @@ class RenPyTerminal(pyte.HistoryScreen):
             self.pty_process_input,
         ]
         self.default_out_handlers = [self.pty_render_handler]
+
+        
+        if no_default_in_handling:
+            self.default_in_handlers = []
+        print(no_default_out_handling)
+        if no_default_out_handling:
+            self.default_out_handlers = []
+
         self.reset_handlers()
         self.queue_thread = threading.Thread(target=self.queue_thread_handler)
         self.queue_thread.daemon = True
@@ -147,6 +162,7 @@ class RenPyTerminal(pyte.HistoryScreen):
 
     @renpy.pure
     def get_empty_render_buffer(self):
+        # return "\r\n".join([" " * self.width for i in range(self.height)])
         return ""
 
     def reset_handlers(self):
@@ -160,6 +176,8 @@ class RenPyTerminal(pyte.HistoryScreen):
         rt_qth_logger.debug("PUT[out]: %s", repr(out))
         self.pty_out_queue.put(out)
         self._set_update_event()
+        self.render()
+        renpy.restart_interaction()
 
     def put_input(self, inp):
         rt_qth_logger.debug("PUT[in]: %s", repr(inp))
@@ -193,6 +211,8 @@ class RenPyTerminal(pyte.HistoryScreen):
                 pass
 
             self.frame += 1
+            self.render()
+            renpy.restart_interaction()
 
     def launch_program(self, cmd):
         """
@@ -205,7 +225,6 @@ class RenPyTerminal(pyte.HistoryScreen):
             return
         if self.proc:
             self.proc.stop()
-            self.reset_handlers()
 
         self.proc = BashProcess(self, cmd)
         self.in_handlers = [self.proc.pty_bashprocess_handle_in]
@@ -328,7 +347,7 @@ class RenPyTerminal(pyte.HistoryScreen):
         if self.proc and self.proc.running:
             self.proc.stop()
             self.proc = None
-        self.show_prompt()
+        # self.show_prompt()
 
     def move_left(self):
         self.put_input((pyte.control.ESC + "[1D").encode("utf-8"))
@@ -369,6 +388,12 @@ class RenPyTerminal(pyte.HistoryScreen):
         self.current_input = self.current_input.strip()
         rt_cmdhandler_logger.info(f"Called %s", self.current_input)
 
+        if self.command_handler is None:
+            self.current_input = ""
+            self.show_prompt()
+            rt_cmdhandler_logger.debug("self.command_handler is None!")
+            return RTSpecial.PTYHANDLER__PREVENT_DEFAULT
+
         res = (self.command_handler)(self)
 
         self.current_input = ""
@@ -379,8 +404,11 @@ class RenPyTerminal(pyte.HistoryScreen):
         return RTSpecial.PTYHANDLER__PREVENT_DEFAULT
 
     def show_prompt(self, linebreak_before=True):
+        if not self.print_prompt:
+            return
         if linebreak_before:
-            self.put_output(b"\r\n")
+            self.put_output(b"\r")
+            self.put_output(b"\n")
         self.put_output(self.prompt.encode("utf-8"))
         self.prompt_location = copy.copy(self.cursor)
         self.toggle_cursor(True)
@@ -411,12 +439,10 @@ class RenPyTerminal(pyte.HistoryScreen):
 
         return self.render_buffer is other.render_buffer
 
-    @renpy.pure
-    def get_line_from_render(self, frame, y):
-        try:
-            return self.render_buffer[y]
-        except IndexError:
-            return []
+
+    def get_render(self, frame):
+        return self.render_buffer
+
 
     def terminal_history_up(self):
         """
@@ -600,7 +626,7 @@ _terminals = {}
 # config.save_json_callbacks.append(jsoncallback)
 
 
-def get_terminal(name: str, command_handler, width, height) -> RenPyTerminal:
+def get_terminal(name: str, command_handler=None, **kwargs) -> RenPyTerminal:
     """
     Gets a terminal with a given name or creates a new one
     """
@@ -610,7 +636,7 @@ def get_terminal(name: str, command_handler, width, height) -> RenPyTerminal:
     #     store.terminal_states = {}
     terminal = _terminals.get(name, None)
     if terminal is None:
-        terminal = RenPyTerminal(command_handler, width=width, height=height)
+        terminal = RenPyTerminal(command_handler, **kwargs)
         _terminals[name] = terminal
     
 

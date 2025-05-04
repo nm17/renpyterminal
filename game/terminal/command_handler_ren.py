@@ -20,10 +20,15 @@ def command_handler(self):
         asd = shlex.split(self.current_input)[1:]
         print("TODO", asd)
 
-        self.launch_program(asd)
+        try:
+            self.launch_program(asd)
+        except FileNotFoundError:
+            self.show_prompt()
+
+            return RTSpecial.CMDHANDLER__PREVENT_DEFAULT
 
 
-        return -1
+        return RTSpecial.CMDHANDLER__PREVENT_DEFAULT
     elif self.current_input == "input":
         self.print("Test input: ")
         barrier = threading.Barrier(2)

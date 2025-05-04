@@ -48,10 +48,15 @@ class BashProcess:
                     env=env,
                     shell=False,
                 )
+
+                self.stdin = slave_fd_i
+                self.stdout = slave_fd_o
+                self.stderr = slave_fd_e
             except FileNotFoundError as err:
                 self.terminal.put_output(
                     f"{Colors.RED}{err}{Colors.END}".encode("utf-8")
                 )
+                raise err
 
             # Start IO threads
             self.stdout_thread = threading.Thread(
@@ -73,6 +78,9 @@ class BashProcess:
                 thread.start()
 
     def process_watchdog(self):
+        if self.process is None:
+            self.stop()
+            return
         self.process.wait()
         self.stop()
 
@@ -91,13 +99,17 @@ class BashProcess:
         self.stop()
 
     def pty_bashprocess_handle_in(self, terminal, inp):
+        if not hasattr(self, "stdin"):
+            self.stop()
+            self.terminal.put_input(inp)
+            return
         try:
-            self.process.stdin.write(inp)
-            self.process.stdin.flush()
+            # TODO: Doesn't work for some reason??
+            os.write(self.stdin, inp)
         except (queue.Empty, BrokenPipeError):
             pass
-        except (IOError, ValueError, AttributeError):
-            print("!!!!!!!!!")
+        except (IOError, ValueError, AttributeError) as err:
+            print("!!!!!!!!!", repr(err))
             self.stop()
 
     def send_command(self, cmd: str):
@@ -106,15 +118,19 @@ class BashProcess:
             self.terminal.put_input(cmd)
 
     def stop(self):
-        if not self.running:
+        if not self.running or self.process is None:
+            self.terminal.reset_handlers()
+            self.running = False
+            self.process = None
             return
         self.running = False
-        if self.process:
-            try:
-                self.process.terminate()
-            except:
-                pass
-            self.process = None
+        rc = self.process.returncode
+
+        try:
+            self.process.terminate()
+        except:
+            pass
+        self.process = None
 
         self.terminal.reset_handlers()
         
@@ -123,5 +139,5 @@ class BashProcess:
         # for thread in [self.stdout_thread, self.stderr_thread]:
         #     if thread and thread.is_alive():
         #         thread.join(timeout=0.5)
-        
+
         self.terminal.show_prompt()
